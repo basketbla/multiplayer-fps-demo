@@ -1,14 +1,15 @@
-import http from 'http';
-import express from 'express';
-import cors from 'cors';
-import { Server } from 'colyseus';
-import { monitor } from '@colyseus/monitor';
-import { GameRoom } from './rooms/GameRoom';
-import { GameState, Planet, Player, SocketEvents, Vector3 } from './types';
+import { monitor } from "@colyseus/monitor";
+import { Server } from "colyseus";
+import cors from "cors";
+import express from "express";
+import http from "http";
+import { GameRoom } from "./rooms/GameRoom";
+import { GameState } from "./types";
 
 const port = Number(process.env.PORT || 3000);
 const app = express();
 
+app.use("/monitor", monitor());
 app.use(cors());
 app.use(express.json());
 
@@ -16,28 +17,28 @@ app.use(express.json());
 const gameState: GameState = {
   planets: [
     {
-      id: 'planet1',
-      name: 'Earth',
+      id: "planet1",
+      name: "Earth",
       position: { x: 0, y: 0, z: 0 },
       radius: 5,
-      color: '#2233ff'
+      color: "#2233ff",
     },
     {
-      id: 'planet2',
-      name: 'Mars',
+      id: "planet2",
+      name: "Mars",
       position: { x: 15, y: 0, z: 15 },
       radius: 3,
-      color: '#ff3300'
+      color: "#ff3300",
     },
     {
-      id: 'planet3',
-      name: 'Venus',
+      id: "planet3",
+      name: "Venus",
       position: { x: -15, y: 0, z: -15 },
       radius: 4,
-      color: '#ffcc00'
-    }
+      color: "#ffcc00",
+    },
   ],
-  players: {}
+  players: {},
 };
 
 // Create HTTP & WebSocket servers
@@ -47,10 +48,10 @@ const gameServer = new Server({
 });
 
 // Register room handlers
-gameServer.define('game_room', GameRoom);
+gameServer.define("game_room", GameRoom);
 
 // Register colyseus monitor (development only)
-app.use('/colyseus', monitor());
+app.use("/colyseus", monitor());
 
 // Start the server
 gameServer.listen(port);
