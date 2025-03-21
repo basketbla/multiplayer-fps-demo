@@ -22,10 +22,42 @@
         color: white;
         font-family: Arial, sans-serif;
       }
+      .hint {
+        position: absolute;
+        bottom: 20px;
+        width: 100%;
+        text-align: center;
+        color: white;
+        font-family: Arial, sans-serif;
+        background-color: rgba(0, 0, 0, 0.5);
+        padding: 10px;
+      }
+      .hidden {
+        display: none;
+      }
+      #controls {
+        position: absolute;
+        top: 50px;
+        left: 10px;
+        color: white;
+        font-family: Arial, sans-serif;
+        background-color: rgba(0, 0, 0, 0.5);
+        padding: 10px;
+        border-radius: 5px;
+      }
     </style>
   </head>
   <body>
     <div id="info">Solar System Shooter</div>
+    <div id="landing-hint" class="hint hidden">Press SPACE to land on planet</div>
+    <div id="takeoff-hint" class="hint hidden">Press SHIFT to take off from planet</div>
+    <div id="controls">
+      <h3>Controls:</h3>
+      <p>WASD - Move</p>
+      <p>SPACE - Land on planet (when near)</p>
+      <p>SHIFT - Take off from planet / Move up</p>
+      <p>CTRL - Move down</p>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

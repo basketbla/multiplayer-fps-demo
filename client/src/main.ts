@@ -53,8 +53,22 @@ let keys = {
   left: false,
   right: false,
   space: false,
-  shift: false
+  shift: false,
+  ctrl: false
 };
+
+// Add a landing indicator
+const landingIndicator = new THREE.Mesh(
+  new THREE.SphereGeometry(0.5, 16, 16),
+  new THREE.MeshBasicMaterial({ 
+    color: 0x00ff00,
+    transparent: true,
+    opacity: 0.5,
+    wireframe: true
+  })
+);
+landingIndicator.visible = false;
+scene.add(landingIndicator);
 
 // Connect to the game room
 async function connectToServer() {
@@ -211,18 +225,14 @@ function setupInputHandlers(): void {
         break;
       case 'Space':
         keys.space = true;
-        // If on a planet, take off
-        if (localPlayer && localPlayer.onPlanet && room) {
-          room.send('takeoff');
-        }
         break;
       case 'ShiftLeft':
       case 'ShiftRight':
         keys.shift = true;
-        // If near a planet, land on it
-        if (localPlayer && !localPlayer.onPlanet) {
-          tryLandOnPlanet();
-        }
+        break;
+      case 'ControlLeft':
+      case 'ControlRight':
+        keys.ctrl = true;
         break;
     }
   });
@@ -251,6 +261,10 @@ function setupInputHandlers(): void {
       case 'ShiftLeft':
       case 'ShiftRight':
         keys.shift = false;
+        break;
+      case 'ControlLeft':
+      case 'ControlRight':
+        keys.ctrl = false;
         break;
     }
   });
@@ -324,17 +338,32 @@ function handlePlayerMovement(deltaTime: number): void {
     // Walking on planet surface
     let angleChange = 0;
     
-    if (keys.forward) angleChange += 1;
-    if (keys.backward) angleChange -= 1;
-    if (keys.left) angleChange += 0.5;
-    if (keys.right) angleChange -= 0.5;
+    // Calculate angle change based on key presses
+    // Forward/backward controls movement around the planet
+    if (keys.forward) angleChange += 1.5 * deltaTime;
+    if (keys.backward) angleChange -= 1.5 * deltaTime;
+    
+    // Left/right controls rotation on the spot
+    if (keys.left) angleChange += 1.0 * deltaTime;
+    if (keys.right) angleChange -= 1.0 * deltaTime;
     
     if (angleChange !== 0) {
       // Update angle for walking around the planet
-      localPlayer.angle += angleChange * deltaTime;
+      localPlayer.angle += angleChange;
+      
+      // Keep angle within 0-2π range
+      localPlayer.angle = localPlayer.angle % (2 * Math.PI);
+      if (localPlayer.angle < 0) localPlayer.angle += 2 * Math.PI;
       
       // Send walk message to server
       room.send('walk', { angle: localPlayer.angle });
+    }
+    
+    // Handle taking off from the planet with the space key
+    if (keys.shift) {
+      room.send('takeoff', {});
+      localPlayer.onPlanet = false;
+      localPlayer.planetId = "";
     }
   } else {
     // Flying in space
@@ -351,18 +380,21 @@ function handlePlayerMovement(deltaTime: number): void {
     if (keys.forward) movement.add(cameraDirection.clone().multiplyScalar(moveSpeed));
     if (keys.backward) movement.add(cameraDirection.clone().multiplyScalar(-moveSpeed));
     
-    const right = new THREE.Vector3()
-      .crossVectors(cameraDirection, camera.up)
-      .normalize();
+    // Calculate right vector (perpendicular to camera direction)
+    const right = new THREE.Vector3().crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
     
     if (keys.right) movement.add(right.clone().multiplyScalar(moveSpeed));
     if (keys.left) movement.add(right.clone().multiplyScalar(-moveSpeed));
     
+    // Move up/down with shift/ctrl
+    if (keys.shift) movement.y += moveSpeed;
+    if (keys.ctrl) movement.y -= moveSpeed;
+    
+    // Apply movement to the player
     if (movement.length() > 0) {
-      // Apply movement to player position
       localPlayer.mesh.position.add(movement);
       
-      // Send position update to server
+      // Send position update to the server
       room.send('move', {
         position: {
           x: localPlayer.mesh.position.x,
@@ -375,6 +407,12 @@ function handlePlayerMovement(deltaTime: number): void {
           z: localPlayer.mesh.rotation.z
         }
       });
+    }
+    
+    // Try to land on a planet with the space key
+    if (keys.space) {
+      tryLandOnPlanet();
+      keys.space = false; // Reset to prevent continuous landing attempts
     }
   }
 }
@@ -430,14 +468,113 @@ function animate() {
     planet.rotation.y += 0.001;
   });
   
+  // Update landing indicator
+  if (localPlayer && !localPlayer.onPlanet) {
+    // Check if player is near any planet
+    let nearestPlanet = null;
+    let nearestDistance = Infinity;
+    let nearestLandingPoint = null;
+    
+    planets.forEach((planetMesh, planetId) => {
+      const playerPos = localPlayer!.mesh.position;
+      const distance = playerPos.distanceTo(planetMesh.position);
+      
+      // Find the planet in the room state
+      let planet: any = null;
+      if (room && room.state && room.state.planets) {
+        if (typeof room.state.planets.find === 'function') {
+          planet = room.state.planets.find((p: any) => p.id === planetId);
+        } else if (typeof room.state.planets.get === 'function') {
+          planet = room.state.planets.get(planetId);
+        } else if (room.state.planets[planetId]) {
+          planet = room.state.planets[planetId];
+        }
+      }
+      
+      // Check if we're close enough to land
+      if (planet && typeof planet.radius === 'number') {
+        const landingDistance = distance - planet.radius;
+        if (landingDistance < 3 && landingDistance < nearestDistance) {
+          nearestDistance = landingDistance;
+          nearestPlanet = planet;
+          
+          // Calculate landing position
+          const direction = new THREE.Vector3()
+            .subVectors(playerPos, planetMesh.position)
+            .normalize();
+          
+          nearestLandingPoint = new THREE.Vector3()
+            .copy(planetMesh.position)
+            .add(direction.multiplyScalar(planet.radius + 0.5));
+        }
+      }
+    });
+    
+    // Show landing indicator if near a planet
+    if (nearestPlanet && nearestLandingPoint) {
+      landingIndicator.position.copy(nearestLandingPoint);
+      landingIndicator.visible = true;
+      
+      // Add pulsing effect
+      const pulseFactor = 0.2 * Math.sin(Date.now() * 0.005) + 1;
+      landingIndicator.scale.set(pulseFactor, pulseFactor, pulseFactor);
+      
+      // Show landing hint
+      document.getElementById('landing-hint')?.classList.remove('hidden');
+    } else {
+      landingIndicator.visible = false;
+      document.getElementById('landing-hint')?.classList.add('hidden');
+    }
+  } else {
+    landingIndicator.visible = false;
+    document.getElementById('landing-hint')?.classList.add('hidden');
+  }
+  
+  // Update landing/takeoff hints
+  if (localPlayer) {
+    if (localPlayer.onPlanet) {
+      // Show takeoff hint when on a planet
+      document.getElementById('landing-hint')?.classList.add('hidden');
+      document.getElementById('takeoff-hint')?.classList.remove('hidden');
+    } else {
+      // Hide takeoff hint when flying
+      document.getElementById('takeoff-hint')?.classList.add('hidden');
+      
+      // Landing hint is handled in the landing indicator section
+    }
+  }
+  
   // Update camera to follow player if on a planet
   if (localPlayer && localPlayer.onPlanet) {
-    // Set camera to follow the player from behind
-    const offset = new THREE.Vector3(0, 3, 5);
-    const playerPos = localPlayer.mesh.position.clone();
+    // Disable orbit controls when on a planet
+    controls.enabled = false;
     
-    camera.position.copy(playerPos).add(offset);
-    camera.lookAt(playerPos);
+    // Get the planet the player is on
+    const planetId = localPlayer.planetId;
+    const planetMesh = planets.get(planetId);
+    
+    if (planetMesh) {
+      // Calculate the normal vector (pointing from planet center to player)
+      const playerPos = localPlayer.mesh.position.clone();
+      const planetPos = planetMesh.position.clone();
+      const normal = new THREE.Vector3().subVectors(playerPos, planetPos).normalize();
+      
+      // Calculate the tangent vector (perpendicular to normal, in the direction of movement)
+      const up = new THREE.Vector3(0, 1, 0);
+      const tangent = new THREE.Vector3().crossVectors(normal, up).normalize();
+      
+      // Calculate the camera position: behind and above the player
+      const cameraOffset = new THREE.Vector3()
+        .addScaledVector(normal, 2) // Move 2 units along the normal (up from surface)
+        .addScaledVector(tangent, -5); // Move 5 units behind the player
+      
+      // Set camera position and orientation
+      camera.position.copy(playerPos).add(cameraOffset);
+      camera.lookAt(playerPos);
+    }
+  } else {
+    // Enable orbit controls when flying
+    controls.enabled = true;
   }
   
   renderer.render(scene, camera);

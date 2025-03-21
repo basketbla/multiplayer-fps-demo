@@ -93,28 +93,50 @@ export class GameRoom extends Room<GameRoomState> {
         const planet = this.state.planets.find(p => p.id === player.planetId);
         if (planet) {
           // Calculate new position based on angle and planet radius
-          const x = planet.position.x + Math.cos(player.angle) * (planet.radius + 0.5);
-          const z = planet.position.z + Math.sin(player.angle) * (planet.radius + 0.5);
+          // We add a small offset to the radius to place the player slightly above the surface
+          const planetRadius = planet.radius;
+          const playerHeight = 0.5; // Height of player above planet surface
+          
+          // Calculate new position based on spherical coordinates
+          const phi = player.angle; // Horizontal angle (longitude)
+          const theta = Math.PI / 2; // Vertical angle (latitude) - at equator
+          
+          // Convert spherical to Cartesian coordinates
+          const x = planet.position.x + (planetRadius + playerHeight) * Math.sin(theta) * Math.cos(phi);
+          const y = planet.position.y + (planetRadius + playerHeight) * Math.cos(theta);
+          const z = planet.position.z + (planetRadius + playerHeight) * Math.sin(theta) * Math.sin(phi);
           
           // Update player position
           player.position.x = x;
+          player.position.y = y;
           player.position.z = z;
           
-          // Calculate y position (height) based on planet radius
-          // This assumes the planet is a perfect sphere
-          const dx = x - planet.position.x;
-          const dz = z - planet.position.z;
-          const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
-          const y = planet.position.y + Math.sqrt(Math.pow(planet.radius + 0.5, 2) - Math.pow(horizontalDistance, 2));
-          player.position.y = y;
-          
           // Update player rotation to stand on the planet surface
-          // Make the player face the direction of movement
+          // Make the player face the direction of movement (tangent to the planet surface)
           player.rotation.y = player.angle + Math.PI / 2;
           
-          // Tilt the player to stand perpendicular to the planet surface
-          const tiltAngle = Math.atan2(y - planet.position.y, horizontalDistance);
-          player.rotation.x = Math.PI / 2 - tiltAngle;
+          // Calculate the normal vector (pointing from planet center to player)
+          const normalX = player.position.x - planet.position.x;
+          const normalY = player.position.y - planet.position.y;
+          const normalZ = player.position.z - planet.position.z;
+          
+          // Normalize the normal vector
+          const normalLength = Math.sqrt(normalX * normalX + normalY * normalY + normalZ * normalZ);
+          const normalizedX = normalX / normalLength;
+          const normalizedY = normalY / normalLength;
+          const normalizedZ = normalZ / normalLength;
+          
+          // Calculate rotation to align player with the normal vector
+          // This makes the player stand perpendicular to the planet surface
+          const upVector = new Vector3(0, 1, 0); // Default up direction
+          
+          // We need to rotate the player to align with the normal vector
+          // This is a simplified approach - in a full implementation, you'd use quaternions
+          const tiltX = Math.acos(normalizedY) - Math.PI / 2;
+          const tiltZ = Math.atan2(normalizedX, normalizedZ);
+          
+          player.rotation.x = tiltX;
+          player.rotation.z = tiltZ;
         }
       }
     });
