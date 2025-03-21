@@ -1,0 +1,27 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "Server for Solar System Shooter",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@colyseus/monitor": "^0.16.6",
+    "@colyseus/schema": "^3.0.24",
+    "colyseus": "^0.16.3",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.17",
+    "@types/node": "^20.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.1.6"
+  }
+}
