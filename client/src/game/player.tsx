@@ -299,10 +299,10 @@ export const Player = ({
           z: translation.z,
         },
         rotation: {
-          x: 0,
-          y: 0,
-          z: 0,
-          w: 1,
+          x: camera.rotation.x,
+          y: camera.rotation.y,
+          z: camera.rotation.z,
+          w: camera.rotation.w,
         },
         animation: isMoving ? PlayerAnimation.WALKING : PlayerAnimation.IDLE,
       });

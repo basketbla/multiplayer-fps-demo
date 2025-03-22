@@ -4,13 +4,24 @@ import * as THREE from "three";
 import { useMultiplayer } from "./MultiplayerContext";
 
 // Avatar representation of other players
-const PlayerAvatar = ({ position }: { position: THREE.Vector3 }) => {
+const PlayerAvatar = ({
+  position,
+  rotation,
+}: {
+  position: THREE.Vector3;
+  rotation?: THREE.Quaternion;
+}) => {
   const { scene, animations } = useGLTF("/avatar.glb");
   const { actions } = useAnimations(animations, scene);
 
   return (
-    <group position={position}>
-      <primitive object={scene} scale={1} />
+    <group
+      position={[position.x, position.y, position.z]}
+      rotation={
+        rotation ? [0, Math.atan2(rotation.y, rotation.w) * 2, 0] : [0, 0, 0]
+      }
+    >
+      <primitive object={scene} scale={0.7} position={[0, -0.5, 0]} />
     </group>
   );
 };
@@ -18,7 +29,10 @@ const PlayerAvatar = ({ position }: { position: THREE.Vector3 }) => {
 export const OtherPlayers: React.FC = () => {
   const { room, clientId } = useMultiplayer();
   const [players, setPlayers] = useState<{
-    [key: string]: { position: THREE.Vector3 };
+    [key: string]: {
+      position: THREE.Vector3;
+      rotation?: THREE.Quaternion;
+    };
   }>({});
 
   useEffect(() => {
@@ -27,7 +41,12 @@ export const OtherPlayers: React.FC = () => {
     // Update player positions when state changes
     const handleStateChange = (state: any) => {
       // Update players
-      const newPlayers: { [key: string]: { position: THREE.Vector3 } } = {};
+      const newPlayers: {
+        [key: string]: {
+          position: THREE.Vector3;
+          rotation?: THREE.Quaternion;
+        };
+      } = {};
 
       state.players.forEach((player: any, id: string) => {
         // Don't include the current player
@@ -38,6 +57,15 @@ export const OtherPlayers: React.FC = () => {
               player.position.y,
               player.position.z
             ),
+            // Add rotation if available
+            rotation: player.rotation
+              ? new THREE.Quaternion(
+                  player.rotation.x,
+                  player.rotation.y,
+                  player.rotation.z,
+                  player.rotation.w
+                )
+              : undefined,
           };
         }
       });
@@ -61,7 +89,11 @@ export const OtherPlayers: React.FC = () => {
     <>
       {/* Render other players */}
       {Object.entries(players).map(([id, player]) => (
-        <PlayerAvatar key={`player-${id}`} position={player.position} />
+        <PlayerAvatar
+          key={`player-${id}`}
+          position={player.position}
+          rotation={player.rotation}
+        />
       ))}
     </>
   );
