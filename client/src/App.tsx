@@ -1,276 +1,305 @@
-import { useEffect, useRef, useState } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { Physics, RigidBody, RapierRigidBody } from '@react-three/rapier'
-import { PerspectiveCamera, Stars } from '@react-three/drei'
+import { Canvas } from './common/components/canvas'
+import { Crosshair } from './common/components/crosshair'
+import { Instructions } from './common/components/instructions'
+import { useLoadingAssets } from './common/hooks/use-loading-assets'
+import { Environment, MeshReflectorMaterial, PerspectiveCamera } from '@react-three/drei'
+import { EffectComposer, Vignette, ChromaticAberration, BrightnessContrast, ToneMapping } from '@react-three/postprocessing'
+import { BlendFunction } from 'postprocessing'
+import { useFrame, useThree } from '@react-three/fiber'
+import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier'
+import { useControls, folder } from 'leva'
+import { useTexture } from '@react-three/drei'
+import { useRef, useEffect } from 'react'
 import * as THREE from 'three'
-import { Client } from 'colyseus.js'
-import { useKeyboardControls } from './hooks/useKeyboardControls'
-import './App.css'
+import { Player, PlayerControls } from './game/player'
+import { Ball } from './game/ball'
+import { SphereTool } from './game/sphere-tool'
+import { Platforms } from './game/platforms'
 
-// Constants
-const PLANET_RADIUS = 10
-const GRAVITY_FORCE = 9.8
-const WALK_SPEED = 6
-const JUMP_FORCE = 220
-const MOUSE_SENSITIVITY = 0.5
+const Scene = () => {
+    const texture = useTexture('/final-texture.png')
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping
+    
+    // Ground texture (50x50)
+    const groundTexture = texture.clone()
+    groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping
+    groundTexture.repeat.set(12, 12) // 12 repeats to match ground size
+    
+    // Side walls texture (2x4)
+    const sideWallTexture = texture.clone()
+    sideWallTexture.wrapS = sideWallTexture.wrapT = THREE.RepeatWrapping
+    sideWallTexture.repeat.set(12, 1) // 12 repeats horizontally to match wall length
+    
+    // Front/back walls texture (50x4)
+    const frontWallTexture = texture.clone()
+    frontWallTexture.wrapS = frontWallTexture.wrapT = THREE.RepeatWrapping
+    frontWallTexture.repeat.set(12, 1) // 12 repeats horizontally to match wall width
 
-// Colyseus client setup
-const client = new Client('ws://localhost:3001')
-
-// Gravity Attractor component
-const GravityAttractor = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <group>
-      {children}
-    </group>
-  )
-}
-
-// Planet component
-const Planet = () => {
-  const planetRef = useRef<THREE.Mesh>(null)
-  
-  return (
-    <>
-      <RigidBody type="fixed" colliders="ball" restitution={0.2} friction={1}>
-        <mesh ref={planetRef} position={[0, 0, 0]}>
-          <sphereGeometry args={[PLANET_RADIUS, 32, 32]} />
-          <meshStandardMaterial color="#4060aa" />
-        </mesh>
-      </RigidBody>
-      <GravityAttractor>
-        <Player planetRef={planetRef} />
-      </GravityAttractor>
-    </>
-  )
-}
-
-interface ColyseusRoom {
-  leave: () => void;
-  send: (type: string, data?: unknown) => void;
-  onStateChange: (callback: (state: unknown) => void) => void;
-}
-
-// Player component
-const Player = ({ planetRef }: { planetRef: React.RefObject<THREE.Mesh | null> }) => {
-  const playerRef = useRef<RapierRigidBody>(null)
-  const playerMeshRef = useRef<THREE.Group>(null)
-  const cameraRef = useRef<THREE.PerspectiveCamera>(null)
-  const [grounded, setGrounded] = useState(false)
-  const [room, setRoom] = useState<ColyseusRoom | null>(null)
-  
-  // Keyboard controls
-  const keys = useKeyboardControls()
-  
-  // Mouse movement
-  const [rotation, setRotation] = useState({ x: 0, y: 0 })
-  
-  // Connect to Colyseus server
-  useEffect(() => {
-    let currentRoom: ColyseusRoom | null = null;
-    
-    const connectToServer = async () => {
-      try {
-        const gameRoom = await client.joinOrCreate<ColyseusRoom>('game_room')
-        setRoom(gameRoom)
-        currentRoom = gameRoom;
-        
-        // Handle player movement from other players
-        gameRoom.onStateChange(() => {
-          // Update other players (not implemented in this example)
-        })
-        
-      } catch (error) {
-        console.error("Could not connect to server:", error)
-      }
-    }
-    
-    connectToServer()
-    
-    return () => {
-      if (currentRoom) {
-        currentRoom.leave()
-      }
-    }
-  }, [])
-  
-  // Handle mouse movement
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      // Only rotate if pointer is locked
-      if (document.pointerLockElement) {
-        setRotation({
-          y: rotation.y + e.movementX * MOUSE_SENSITIVITY * 0.01,
-          x: Math.max(-Math.PI/2, Math.min(Math.PI/2, rotation.x - e.movementY * MOUSE_SENSITIVITY * 0.01))
-        })
-      }
-    }
-    
-    const handleClick = () => {
-      document.body.requestPointerLock()
-    }
-    
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('click', handleClick)
-    
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('click', handleClick)
-    }
-  }, [rotation])
-  
-  // Apply gravity and handle movement
-  useFrame(() => {
-    if (!playerRef.current || !planetRef.current || !playerMeshRef.current) return
-    
-    // Get current position
-    const playerPosition = playerRef.current.translation()
-    const planetPosition = new THREE.Vector3(0, 0, 0) // Center of the planet
-    
-    // Calculate gravity direction (from player to planet center)
-    const gravityDir = new THREE.Vector3(
-      planetPosition.x - playerPosition.x,
-      planetPosition.y - playerPosition.y,
-      planetPosition.z - playerPosition.z
-    ).normalize()
-    
-    // Apply gravity force
-    playerRef.current.applyImpulse(
-      { x: gravityDir.x * GRAVITY_FORCE, y: gravityDir.y * GRAVITY_FORCE, z: gravityDir.z * GRAVITY_FORCE },
-      true
+    return (
+        <RigidBody type="fixed" position={[0, 0, 0]} colliders={false}>
+            {/* Ground collider */}
+            <CuboidCollider args={[25, 0.1, 25]} position={[0, -0.1, 0]} />
+            
+            {/* Wall colliders */}
+            <CuboidCollider position={[25, 2, 0]} args={[1, 2, 25]} />
+            <CuboidCollider position={[-25, 2, 0]} args={[1, 2, 25]} />
+            <CuboidCollider position={[0, 2, 25]} args={[25, 2, 1]} />
+            <CuboidCollider position={[0, 2, -25]} args={[25, 2, 1]} />
+            
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+                <planeGeometry args={[50, 50]} />
+                <MeshReflectorMaterial
+                    map={groundTexture}
+                    mirror={0}
+                    roughness={1}
+                    depthScale={0}
+                    minDepthThreshold={0.9}
+                    maxDepthThreshold={1}
+                    metalness={0}
+                />
+            </mesh>
+            
+            {/* Border walls */}
+            <mesh position={[25, 2, 0]}>
+                <boxGeometry args={[2, 4, 50]} />
+                <meshStandardMaterial map={sideWallTexture} side={THREE.DoubleSide} />
+            </mesh>
+            <mesh position={[-25, 2, 0]}>
+                <boxGeometry args={[2, 4, 50]} />
+                <meshStandardMaterial map={sideWallTexture} side={THREE.DoubleSide} />
+            </mesh>
+            <mesh position={[0, 2, 25]}>
+                <boxGeometry args={[50, 4, 2]} />
+                <meshStandardMaterial map={frontWallTexture} side={THREE.DoubleSide} />
+            </mesh>
+            <mesh position={[0, 2, -25]}>
+                <boxGeometry args={[50, 4, 2]} />
+                <meshStandardMaterial map={frontWallTexture} side={THREE.DoubleSide} />
+            </mesh>
+        </RigidBody>
     )
-    
-    // Align player up direction with gravity direction (away from planet)
-    const upVector = gravityDir.clone().negate()
-    const rightVector = new THREE.Vector3(1, 0, 0).cross(upVector).normalize()
-    const forwardVector = upVector.clone().cross(rightVector).normalize()
-    
-    // Create rotation matrix and apply to player mesh
-    const rotMatrix = new THREE.Matrix4().makeBasis(rightVector, upVector, forwardVector)
-    playerMeshRef.current.quaternion.setFromRotationMatrix(rotMatrix)
-    
-    // Apply player's look rotation
-    const lookRotation = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(rotation.x, rotation.y, 0, 'YXZ')
+}
+
+export function App() {
+    const loading = useLoadingAssets()
+    const directionalLightRef = useRef<THREE.DirectionalLight>(null)
+
+    const { 
+        walkSpeed,
+        runSpeed,
+        jumpForce
+    } = useControls('Character', {
+        walkSpeed: { value: 0.11, min: 0.05, max: 0.2, step: 0.01 },
+        runSpeed: { value: 0.15, min: 0.1, max: 0.3, step: 0.01 },
+        jumpForce: { value: 0.5, min: 0.3, max: 0.8, step: 0.1 }
+    }, {
+        collapsed: true,
+        hidden: true
+    })
+
+    const { 
+        fogEnabled,
+        fogColor,
+        fogNear,
+        fogFar,
+        ambientIntensity,
+        directionalIntensity,
+        directionalHeight,
+        directionalDistance,
+        enablePostProcessing,
+        vignetteEnabled,
+        vignetteOffset,
+        vignetteDarkness,
+        chromaticAberrationEnabled,
+        chromaticAberrationOffset,
+        brightnessContrastEnabled,
+        brightness,
+        contrast,
+        colorGradingEnabled,
+        toneMapping,
+        toneMappingExposure
+    } = useControls({
+        fog: folder({
+            fogEnabled: true,
+            fogColor: '#dbdbdb',
+            fogNear: { value: 13, min: 0, max: 50, step: 1 },
+            fogFar: { value: 95, min: 0, max: 100, step: 1 }
+        }, { collapsed: true, hidden: true }),
+        lighting: folder({
+            ambientIntensity: { value: 1.3, min: 0, max: 2, step: 0.1 },
+            directionalIntensity: { value: 1, min: 0, max: 2, step: 0.1 },
+            directionalHeight: { value: 20, min: 5, max: 50, step: 1 },
+            directionalDistance: { value: 10, min: 5, max: 30, step: 1 }
+        }, { collapsed: true, hidden: true }),
+        postProcessing: folder({
+            enablePostProcessing: true,
+            vignetteEnabled: true,
+            vignetteOffset: { value: 0.5, min: 0, max: 1, step: 0.1 },
+            vignetteDarkness: { value: 0.5, min: 0, max: 1, step: 0.1 },
+            chromaticAberrationEnabled: true,
+            chromaticAberrationOffset: { value: 0.0005, min: 0, max: 0.01, step: 0.0001 },
+            brightnessContrastEnabled: true,
+            brightness: { value: 0.1, min: -1, max: 1, step: 0.1 },
+            contrast: { value: 0.1, min: -1, max: 1, step: 0.1 },
+            colorGradingEnabled: true,
+            toneMapping: { 
+                value: THREE.ACESFilmicToneMapping,
+                options: {
+                    'ACESFilmic': THREE.ACESFilmicToneMapping,
+                    'Reinhard': THREE.ReinhardToneMapping,
+                    'Cineon': THREE.CineonToneMapping,
+                    'Linear': THREE.LinearToneMapping
+                }
+            },
+            toneMappingExposure: { value: 1.2, min: 0, max: 2, step: 0.1 }
+        }, { collapsed: true, hidden: true })
+    }, {
+        collapsed: true,
+        hidden: true
+    })
+
+    return (
+        <>
+            <div style={{
+                position: 'absolute',
+                top: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                color: 'rgba(255, 255, 255, 0.75)',
+                fontSize: '13px',
+                fontFamily: 'monospace',
+                userSelect: 'none',
+                zIndex: 1000
+            }}>
+                <div style={{
+                    background: 'rgba(255, 255, 255, 0.15)',
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    letterSpacing: '0.5px',
+                    whiteSpace: 'nowrap'
+                }}>
+                    WASD to move | SPACE to jump | SHIFT to run
+                </div>
+            </div>
+            
+            <div id="ammo-display" style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                color: 'rgba(255, 255, 255, 0.75)',
+                fontSize: '14px',
+                fontFamily: 'monospace',
+                userSelect: 'none',
+                zIndex: 1000
+            }}>
+                AMMO: 50/50
+            </div>
+            
+            <Canvas>
+                {fogEnabled && <fog attach="fog" args={[fogColor, fogNear, fogFar]} />}
+                <Environment
+                    preset="sunset"
+                    intensity={1}
+                    background
+                    blur={0.8}
+                    resolution={256}
+                />
+
+                <ambientLight intensity={ambientIntensity} />
+                <directionalLight
+                    castShadow
+                    position={[directionalDistance, directionalHeight, directionalDistance]}
+                    ref={directionalLightRef}
+                    intensity={directionalIntensity}
+                    shadow-mapSize={[4096, 4096]}
+                    shadow-camera-left={-30}
+                    shadow-camera-right={30}
+                    shadow-camera-top={30}
+                    shadow-camera-bottom={-30}
+                    shadow-camera-near={1}
+                    shadow-camera-far={150}
+                    shadow-bias={-0.0001}
+                    shadow-normalBias={0.02}
+                />
+
+                <Physics 
+                    debug={false} 
+                    paused={loading}
+                    timeStep={1/60}
+                    interpolate={true}
+                    gravity={[0, -9.81, 0]}
+                    substeps={2}
+                    maxStabilizationIterations={10}
+                    maxVelocityIterations={10}
+                    maxVelocityFriction={1}
+                >
+                    <PlayerControls>
+                        <Player 
+                            position={[0, 7, 10]}
+                            walkSpeed={walkSpeed}
+                            runSpeed={runSpeed}
+                            jumpForce={jumpForce}
+                            onMove={(position) => {
+                                if (directionalLightRef.current) {
+                                    const light = directionalLightRef.current
+                                    light.position.x = position.x + directionalDistance
+                                    light.position.z = position.z + directionalDistance
+                                    light.target.position.copy(position)
+                                    light.target.updateMatrixWorld()
+                                }
+                            }}
+                        />
+                    </PlayerControls>
+                    <Platforms />
+                    <Ball />
+
+                    <Scene />
+                    <SphereTool />
+                </Physics>
+
+                <PerspectiveCamera 
+                    makeDefault 
+                    position={[0, 10, 10]} 
+                    rotation={[0, 0, 0]}
+                    near={0.1}
+                    far={1000}
+                />
+
+                {enablePostProcessing && (
+                    <EffectComposer>
+                        {vignetteEnabled && (
+                            <Vignette
+                                offset={vignetteOffset}
+                                darkness={vignetteDarkness}
+                                eskil={false}
+                            />
+                        )}
+                        {chromaticAberrationEnabled && (
+                            <ChromaticAberration
+                                offset={new THREE.Vector2(chromaticAberrationOffset, chromaticAberrationOffset)}
+                                radialModulation={false}
+                                modulationOffset={0}
+                            />
+                        )}
+                        {brightnessContrastEnabled && (
+                            <BrightnessContrast
+                                brightness={brightness}
+                                contrast={contrast} 
+                            />
+                        )}
+                        {colorGradingEnabled && (
+                            <ToneMapping
+                                blendFunction={BlendFunction.NORMAL}
+                                mode={toneMapping}
+                            />
+                        )}
+                    </EffectComposer>
+                )}
+            </Canvas>
+
+            <Crosshair />
+        </>
     )
-    playerMeshRef.current.quaternion.multiply(lookRotation)
-    
-    // Update camera position and rotation
-    if (cameraRef.current) {
-      cameraRef.current.position.copy(playerPosition)
-      cameraRef.current.quaternion.copy(playerMeshRef.current.quaternion)
-    }
-    
-    // Handle movement based on keyboard input
-    if (keys.forward || keys.backward || keys.left || keys.right) {
-      // Calculate movement direction in player's local space
-      const moveDir = new THREE.Vector3(
-        (keys.left ? -1 : 0) + (keys.right ? 1 : 0),
-        0,
-        (keys.forward ? -1 : 0) + (keys.backward ? 1 : 0)
-      ).normalize().multiplyScalar(WALK_SPEED * 0.1)
-      
-      // Transform direction to world space based on player's orientation
-      const worldMoveDir = moveDir.applyQuaternion(playerMeshRef.current.quaternion)
-      
-      // Apply movement impulse
-      playerRef.current.applyImpulse(
-        { x: worldMoveDir.x, y: worldMoveDir.y, z: worldMoveDir.z },
-        true
-      )
-      
-      // Send position to server
-      if (room) {
-        room.send("move", {
-          position: {
-            x: playerPosition.x,
-            y: playerPosition.y,
-            z: playerPosition.z
-          },
-          quaternion: {
-            x: playerMeshRef.current.quaternion.x,
-            y: playerMeshRef.current.quaternion.y,
-            z: playerMeshRef.current.quaternion.z,
-            w: playerMeshRef.current.quaternion.w
-          }
-        })
-      }
-    }
-    
-    // Handle jumping
-    if (keys.jump && grounded) {
-      const jumpDir = upVector.multiplyScalar(JUMP_FORCE * 0.05)
-      playerRef.current.applyImpulse(
-        { x: jumpDir.x, y: jumpDir.y, z: jumpDir.z },
-        true
-      )
-      
-      if (room) {
-        room.send("jump")
-      }
-      
-      setGrounded(false)
-    }
-    
-    // Check if grounded
-    const rayStart = new THREE.Vector3(playerPosition.x, playerPosition.y, playerPosition.z)
-    
-    // Simplified grounded check (in a real implementation, use Rapier's ray casting)
-    const distanceToPlanet = rayStart.distanceTo(planetPosition) - PLANET_RADIUS
-    if (distanceToPlanet < 1.5) {
-      setGrounded(true)
-    }
-  })
-  
-  return (
-    <>
-      <PerspectiveCamera ref={cameraRef} makeDefault position={[0, 15, 0]} />
-      
-      <RigidBody 
-        ref={playerRef}
-        position={[0, PLANET_RADIUS + 2, 0]} 
-        colliders="ball"
-        mass={1}
-        lockRotations
-      >
-        <group ref={playerMeshRef}>
-          <mesh>
-            <capsuleGeometry args={[0.5, 1, 4, 8]} />
-            <meshStandardMaterial color="hotpink" />
-          </mesh>
-        </group>
-      </RigidBody>
-    </>
-  )
-}
-
-// Other players component (not fully implemented)
-const OtherPlayers = () => {
-  return null
-}
-
-function App() {
-  return (
-    <div className="canvas-container">
-      <Canvas shadows>
-        <color attach="background" args={['#000']} />
-        <ambientLight intensity={0.3} />
-        <directionalLight position={[10, 10, 10]} intensity={1} castShadow />
-        
-        <Stars radius={100} depth={50} count={5000} factor={4} />
-        
-        <Physics gravity={[0, 0, 0]}>
-          <Planet />
-          <OtherPlayers />
-        </Physics>
-      </Canvas>
-      
-      <div className="controls-info">
-        <p>WASD: Move | SPACE: Jump | MOUSE: Look</p>
-        <p>Click to lock cursor</p>
-      </div>
-    </div>
-  )
 }
 
 export default App
