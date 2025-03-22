@@ -15,6 +15,9 @@ import { Player, PlayerControls } from './game/player'
 import { Ball } from './game/ball'
 import { SphereTool } from './game/sphere-tool'
 import { Platforms } from './game/platforms'
+import { MultiplayerProvider } from './multiplayer/MultiplayerContext'
+import { ConnectionStatus } from './multiplayer/ConnectionStatus'
+import { OtherPlayers } from './multiplayer/OtherPlayers'
 
 const Scene = () => {
     const texture = useTexture('/final-texture.png')
@@ -159,7 +162,7 @@ export function App() {
     })
 
     return (
-        <>
+        <MultiplayerProvider>
             <div style={{
                 position: 'absolute',
                 top: '20px',
@@ -194,6 +197,8 @@ export function App() {
             }}>
                 AMMO: 50/50
             </div>
+            
+            <ConnectionStatus />
             
             <Canvas>
                 {fogEnabled && <fog attach="fog" args={[fogColor, fogNear, fogFar]} />}
@@ -250,6 +255,9 @@ export function App() {
                             }}
                         />
                     </PlayerControls>
+                    
+                    <OtherPlayers />
+                    
                     <Platforms />
                     <Ball />
 
@@ -298,7 +306,7 @@ export function App() {
             </Canvas>
 
             <Crosshair />
-        </>
+        </MultiplayerProvider>
     )
 }
 

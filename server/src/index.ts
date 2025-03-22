@@ -6,7 +6,7 @@ import { createServer } from "http";
 import path from "path";
 import { GameRoom } from "./rooms/GameRoom";
 
-const port = Number(process.env.PORT || 3000);
+const port = Number(process.env.PORT || 3001);
 const app = express();
 
 // Apply CORS middleware
