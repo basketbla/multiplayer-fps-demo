@@ -17,8 +17,11 @@
     "start": "npm run start -w server"
   },
   "keywords": [
+    "react",
     "three.js",
-    "typescript",
+    "react-three-fiber",
+    "rapier",
+    "colyseus",
     "game",
     "multiplayer"
   ],
@@ -27,8 +30,5 @@
   "devDependencies": {
     "concurrently": "^8.2.0",
     "typescript": "^5.1.6"
-  },
-  "dependencies": {
-    "@colyseus/monitor": "^0.16.6"
   }
 }

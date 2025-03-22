@@ -1,85 +1,68 @@
 import { Room, Client } from "colyseus";
-import { GameRoomState, Player, Vector3 } from "../schema/GameState";
+import { GameState } from "../schema/GameState";
+import { Player } from "../schema/GameState";
 
-export class GameRoom extends Room<GameRoomState> {
+export class GameRoom extends Room<GameState> {
   maxClients = 16;
 
   onCreate() {
-    console.log("Game room created!");
-    
-    // Initialize room state
-    this.setState(new GameRoomState());
+    this.setState(new GameState());
 
     // Handle player movement
-    this.onMessage("move", (client, data: { position: { x: number, y: number, z: number }, rotation: { y: number } }) => {
+    this.onMessage("move", (client, data) => {
       const player = this.state.players.get(client.sessionId);
       if (player) {
-        // Update player position
         player.position.x = data.position.x;
+        player.position.y = data.position.y;
         player.position.z = data.position.z;
-        
-        // Only update Y position if jumping
-        if (player.isJumping) {
-          player.position.y = data.position.y;
-        }
-        
-        // Update player rotation (only Y rotation for looking left/right)
-        player.rotation.y = data.rotation.y;
+        player.quaternion.x = data.quaternion.x;
+        player.quaternion.y = data.quaternion.y;
+        player.quaternion.z = data.quaternion.z;
+        player.quaternion.w = data.quaternion.w;
       }
     });
 
-    // Handle player jumping
+    // Handle player jump
     this.onMessage("jump", (client) => {
       const player = this.state.players.get(client.sessionId);
-      if (player && !player.isJumping) {
-        console.log(`Player ${client.sessionId} jumped`);
-        player.isJumping = true;
-        player.jumpTime = 0;
-        
-        // Schedule jump updates
-        const updateJump = () => {
-          if (player && player.isJumping) {
-            player.jumpTime += 0.1; // Increment by 0.1 seconds
-            
-            // End jump after 1 second
-            if (player.jumpTime >= 1.0) {
-              player.isJumping = false;
-              player.position.y = 0; // Reset to ground level
-            } else {
-              // Schedule next update
-              this.clock.setTimeout(updateJump, 100);
-            }
-          }
-        };
-        
-        // Start the jump update cycle
-        this.clock.setTimeout(updateJump, 100);
+      if (player) {
+        // The actual jump physics will be handled client-side with Rapier
+        // This just broadcasts the jump event to other clients
+        this.broadcast("playerJumped", { id: client.sessionId });
       }
     });
+
+    console.log("GameRoom created!");
   }
 
   onJoin(client: Client) {
-    console.log(`Player ${client.sessionId} joined the game`);
+    console.log(`Client joined: ${client.sessionId}`);
     
-    // Create a new player at a random position on the flat plane
-    const player = new Player(
-      client.sessionId,
-      new Vector3(
-        (Math.random() - 0.5) * 20, // Random X position
-        0,                          // Y position (on the ground)
-        (Math.random() - 0.5) * 20  // Random Z position
-      ),
-      new Vector3(0, Math.random() * Math.PI * 2, 0) // Random Y rotation
-    );
+    // Create a new player
+    const player = new Player();
+    player.id = client.sessionId;
+    
+    // Random position on the planet surface
+    const radius = 10; // Planet radius
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.random() * Math.PI;
+    
+    player.position.x = radius * Math.sin(phi) * Math.cos(theta);
+    player.position.y = radius * Math.sin(phi) * Math.sin(theta);
+    player.position.z = radius * Math.cos(phi);
     
     // Add player to the game state
     this.state.players.set(client.sessionId, player);
   }
 
   onLeave(client: Client) {
-    console.log(`Player ${client.sessionId} left the game`);
+    console.log(`Client left: ${client.sessionId}`);
     
-    // Remove player from the game state
+    // Remove the player from the game state
     this.state.players.delete(client.sessionId);
+  }
+
+  onDispose() {
+    console.log("GameRoom disposed!");
   }
 }

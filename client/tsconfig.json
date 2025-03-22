@@ -1,13 +1,7 @@
 {
-  "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "outDir": "dist",
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "jsx": "react-jsx",
-    "types": ["vite/client", "three"]
-  },
-  "include": ["src"],
+  "files": [],
   "references": [
-    { "path": "../shared" }
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
   ]
 }

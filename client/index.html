@@ -1,63 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Solar System Shooter</title>
-    <style>
-      body {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        background-color: #000;
-      }
-      canvas {
-        display: block;
-      }
-      #info {
-        position: absolute;
-        top: 10px;
-        width: 100%;
-        text-align: center;
-        color: white;
-        font-family: Arial, sans-serif;
-      }
-      .hint {
-        position: absolute;
-        bottom: 20px;
-        width: 100%;
-        text-align: center;
-        color: white;
-        font-family: Arial, sans-serif;
-        background-color: rgba(0, 0, 0, 0.5);
-        padding: 10px;
-      }
-      .hidden {
-        display: none;
-      }
-      #controls {
-        position: absolute;
-        top: 50px;
-        left: 10px;
-        color: white;
-        font-family: Arial, sans-serif;
-        background-color: rgba(0, 0, 0, 0.5);
-        padding: 10px;
-        border-radius: 5px;
-      }
-    </style>
+    <title>Vite + React + TS</title>
   </head>
   <body>
-    <div id="info">Solar System Shooter</div>
-    <div id="landing-hint" class="hint hidden">Press SPACE to land on planet</div>
-    <div id="takeoff-hint" class="hint hidden">Press SHIFT to take off from planet</div>
-    <div id="controls">
-      <h3>Controls:</h3>
-      <p>WASD - Move</p>
-      <p>SPACE - Land on planet (when near)</p>
-      <p>SHIFT - Take off from planet / Move up</p>
-      <p>CTRL - Move down</p>
-    </div>
-    <script type="module" src="/src/main.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
