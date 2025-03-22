@@ -292,9 +292,12 @@ function setupInputHandlers(): void {
         keys.right = true;
         break;
       case "Space":
-        keys.jump = true;
-        if (localPlayer && !localPlayer.isJumping && room) {
-          room.send("jump", {});
+        if (!keys.jump) { // Only trigger jump if not already jumping
+          keys.jump = true;
+          if (localPlayer && !localPlayer.isJumping && room) {
+            console.log("Sending jump command to server");
+            room.send("jump", {});
+          }
         }
         break;
       case "Escape":
@@ -430,23 +433,26 @@ function handlePlayerMovement(deltaTime: number): void {
   );
 
   // Apply movement
-  if (rotatedMoveVector.length() > 0) {
+  if (rotatedMoveVector.length() > 0 || localPlayer.isJumping) {
+    // Apply horizontal movement
     localPlayer.mesh.position.x += rotatedMoveVector.x;
     localPlayer.mesh.position.z += rotatedMoveVector.z;
 
     // Handle jumping
     if (localPlayer.isJumping) {
-      // Simple jump arc
+      // Get jump time from server
+      const jumpTime = room.state.players.get(localPlayer.id)?.jumpTime || 0;
+      
+      // Simple jump arc (sin curve)
       const jumpHeight = 3;
       const jumpDuration = 1;
-
-      // Get jump time from server or estimate it
-      const jumpTime = room.state.players.get(localPlayer.id)?.jumpTime || 0;
       const jumpProgress = Math.min(1, jumpTime / jumpDuration);
-
+      
       // Parabolic jump curve
-      localPlayer.mesh.position.y =
-        jumpHeight * Math.sin(jumpProgress * Math.PI);
+      localPlayer.mesh.position.y = jumpHeight * Math.sin(jumpProgress * Math.PI);
+    } else {
+      // Make sure we're on the ground when not jumping
+      localPlayer.mesh.position.y = 0;
     }
 
     // Send position update to the server including the rotation

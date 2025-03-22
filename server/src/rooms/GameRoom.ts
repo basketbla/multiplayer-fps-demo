@@ -32,16 +32,28 @@ export class GameRoom extends Room<GameRoomState> {
     this.onMessage("jump", (client) => {
       const player = this.state.players.get(client.sessionId);
       if (player && !player.isJumping) {
+        console.log(`Player ${client.sessionId} jumped`);
         player.isJumping = true;
         player.jumpTime = 0;
         
-        // Schedule jump end after 1 second
-        this.clock.setTimeout(() => {
-          if (player) {
-            player.isJumping = false;
-            player.position.y = 0; // Reset to ground level
+        // Schedule jump updates
+        const updateJump = () => {
+          if (player && player.isJumping) {
+            player.jumpTime += 0.1; // Increment by 0.1 seconds
+            
+            // End jump after 1 second
+            if (player.jumpTime >= 1.0) {
+              player.isJumping = false;
+              player.position.y = 0; // Reset to ground level
+            } else {
+              // Schedule next update
+              this.clock.setTimeout(updateJump, 100);
+            }
           }
-        }, 1000);
+        };
+        
+        // Start the jump update cycle
+        this.clock.setTimeout(updateJump, 100);
       }
     });
   }
