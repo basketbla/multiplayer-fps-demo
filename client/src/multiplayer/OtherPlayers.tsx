@@ -15,13 +15,13 @@ const PlayerAvatar = ({
   const { actions } = useAnimations(animations, scene);
 
   return (
-    <group
-      position={[position.x, position.y, position.z]}
-      rotation={
-        rotation ? [0, Math.atan2(rotation.y, rotation.w) * 2, 0] : [0, 0, 0]
-      }
-    >
-      <primitive object={scene} scale={0.7} position={[0, -0.5, 0]} />
+    <group position={[position.x, position.y, position.z]}>
+      <primitive
+        object={scene}
+        scale={0.7}
+        position={[0, -0.5, 0]}
+        rotation={[rotation?.x, rotation?.y, rotation?.z]}
+      />
     </group>
   );
 };
@@ -58,14 +58,7 @@ export const OtherPlayers: React.FC = () => {
               player.position.z
             ),
             // Add rotation if available
-            rotation: player.rotation
-              ? new THREE.Quaternion(
-                  player.rotation.x,
-                  player.rotation.y,
-                  player.rotation.z,
-                  player.rotation.w
-                )
-              : undefined,
+            rotation: player.rotation,
           };
         }
       });

@@ -302,7 +302,6 @@ export const Player = ({
           x: camera.rotation.x,
           y: camera.rotation.y,
           z: camera.rotation.z,
-          w: camera.rotation.w,
         },
         animation: isMoving ? PlayerAnimation.WALKING : PlayerAnimation.IDLE,
       });
