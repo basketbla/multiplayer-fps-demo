@@ -4,23 +4,34 @@ import * as THREE from "three";
 import { useMultiplayer } from "./MultiplayerContext";
 
 // Avatar representation of other players
+
 const PlayerAvatar = ({
   position,
   rotation,
 }: {
   position: THREE.Vector3;
-  rotation?: THREE.Quaternion;
+  rotation?: THREE.Vector3;
 }) => {
   const { scene, animations } = useGLTF("/avatar.glb");
   const { actions } = useAnimations(animations, scene);
+
+  // Use a default if rotation isn't provided
+  const r = rotation || new THREE.Vector3(0, 0, 0);
+
+  // This is how to get just y correctly
+  let correctedY = r.y;
+  const threshold = Math.PI / 2;
+  if (Math.abs(r.x) > threshold || Math.abs(r.z) > threshold) {
+    correctedY = -1 * (Math.PI + r.y);
+  }
 
   return (
     <group position={[position.x, position.y, position.z]}>
       <primitive
         object={scene}
         scale={0.7}
-        position={[0, -0.5, 0]}
-        rotation={[rotation?.x, rotation?.y, rotation?.z]}
+        position={[0, -1.6, 0]}
+        rotation={[0, correctedY, 0]}
       />
     </group>
   );
