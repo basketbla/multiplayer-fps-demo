@@ -1,29 +1,34 @@
-import React, { useEffect, useState } from 'react';
-import { useMultiplayer } from './MultiplayerContext';
-import * as THREE from 'three';
+import { useAnimations, useGLTF } from "@react-three/drei";
+import React, { useEffect, useState } from "react";
+import * as THREE from "three";
+import { useMultiplayer } from "./MultiplayerContext";
 
-// Simple representation of other players
+// Avatar representation of other players
 const PlayerAvatar = ({ position }: { position: THREE.Vector3 }) => {
+  const { scene, animations } = useGLTF("/avatar.glb");
+  const { actions } = useAnimations(animations, scene);
+
   return (
-    <mesh position={position}>
-      <capsuleGeometry args={[0.5, 1, 4, 8]} />
-      <meshStandardMaterial color="orange" />
-    </mesh>
+    <group position={position}>
+      <primitive object={scene} scale={1} />
+    </group>
   );
 };
 
 export const OtherPlayers: React.FC = () => {
   const { room, clientId } = useMultiplayer();
-  const [players, setPlayers] = useState<{[key: string]: {position: THREE.Vector3}}>({});
-  
+  const [players, setPlayers] = useState<{
+    [key: string]: { position: THREE.Vector3 };
+  }>({});
+
   useEffect(() => {
     if (!room) return;
-    
+
     // Update player positions when state changes
     const handleStateChange = (state: any) => {
       // Update players
-      const newPlayers: {[key: string]: {position: THREE.Vector3}} = {};
-      
+      const newPlayers: { [key: string]: { position: THREE.Vector3 } } = {};
+
       state.players.forEach((player: any, id: string) => {
         // Don't include the current player
         if (id !== clientId) {
@@ -32,26 +37,26 @@ export const OtherPlayers: React.FC = () => {
               player.position.x,
               player.position.y,
               player.position.z
-            )
+            ),
           };
         }
       });
-      
+
       setPlayers(newPlayers);
     };
-    
+
     room.onStateChange(handleStateChange);
-    
+
     // Initial state
     if (room.state) {
       handleStateChange(room.state);
     }
-    
+
     return () => {
       // No cleanup needed as Colyseus handles this
     };
   }, [room, clientId]);
-  
+
   return (
     <>
       {/* Render other players */}
@@ -61,3 +66,6 @@ export const OtherPlayers: React.FC = () => {
     </>
   );
 };
+
+// Preload the model to ensure it's cached
+useGLTF.preload("/avatar.glb");
