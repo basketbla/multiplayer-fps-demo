@@ -16,13 +16,11 @@ export interface Player {
   id: string;
   position: Vector3;
   rotation: Vector3;
-  planetId: string;
-  onPlanet: boolean;
-  angle: number;
+  isJumping: boolean;
+  jumpTime: number;
 }
 
 export interface GameState {
-  planets: Planet[];
   players: Record<string, Player>;
 }
 
