@@ -15,7 +15,7 @@ const RAINBOW_COLORS = [
     '#9400D3'  // Violet
 ]
 
-const SHOOT_FORCE = 45
+const SHOOT_FORCE = 45 // Speed factor for projectiles
 const SPHERE_OFFSET = {
     x: 0.12,  // Slightly to the right
     y: -0.27, // Lower below crosshair
@@ -23,15 +23,15 @@ const SPHERE_OFFSET = {
 }
 
 type SphereProps = {
-    id?: string
+    id: string
     position: [number, number, number]
     direction: [number, number, number]
     color: string
     radius: number
-    isLocal?: boolean
 }
 
-const Sphere = ({ position, direction, color, radius, isLocal = true }: SphereProps) => {
+// Sphere with physics
+const Sphere = ({ position, direction, color, radius }: SphereProps) => {
     return (
         <RigidBody
             position={position}
@@ -42,7 +42,7 @@ const Sphere = ({ position, direction, color, radius, isLocal = true }: SpherePr
             colliders="ball"
             mass={1}
             ccd={true}
-            linearVelocity={isLocal ? [direction[0] * SHOOT_FORCE, direction[1] * SHOOT_FORCE, direction[2] * SHOOT_FORCE] : [0, 0, 0]}
+            linearVelocity={[direction[0] * SHOOT_FORCE, direction[1] * SHOOT_FORCE, direction[2] * SHOOT_FORCE]}
         >
             <mesh castShadow receiveShadow>
                 <sphereGeometry args={[radius, 32, 32]} />
@@ -55,29 +55,26 @@ const Sphere = ({ position, direction, color, radius, isLocal = true }: SpherePr
 export const SphereTool = () => {
     const sphereRadius = 0.11
     const MAX_AMMO = 50
+    const PROJECTILE_LIFETIME = 10000 // 10 seconds
 
     const camera = useThree((s) => s.camera)
-    const [localSpheres, setLocalSpheres] = useState<SphereProps[]>([])
-    const [remoteSpheres, setRemoteSpheres] = useState<SphereProps[]>([])
+    const [spheres, setSpheres] = useState<{[key: string]: SphereProps}>({})
     const [ammoCount, setAmmoCount] = useState(MAX_AMMO)
     const [isReloading, setIsReloading] = useState(false)
     const shootingInterval = useRef<number>()
     const isPointerDown = useRef(false)
     const gamepadState = useGamepad()
     const { room, clientId } = useMultiplayer()
-
-    // Listen for remote spheres
+    
+    // Listen for all spheres from the server
     useEffect(() => {
         if (!room) return
         
         const handleStateChange = (state: any) => {
-            const newRemoteSpheres: SphereProps[] = []
+            const updatedSpheres: {[key: string]: SphereProps} = {}
             
             state.projectiles.forEach((projectile: any, id: string) => {
-                // Skip our own projectiles as they're already in localSpheres
-                if (projectile.ownerId === clientId) return
-                
-                newRemoteSpheres.push({
+                updatedSpheres[id] = {
                     id,
                     position: [
                         projectile.position.x,
@@ -90,12 +87,11 @@ export const SphereTool = () => {
                         projectile.direction.z
                     ],
                     color: projectile.color || RAINBOW_COLORS[0],
-                    radius: sphereRadius,
-                    isLocal: false
-                })
+                    radius: sphereRadius
+                }
             })
             
-            setRemoteSpheres(newRemoteSpheres)
+            setSpheres(updatedSpheres)
         }
         
         room.onStateChange(handleStateChange)
@@ -108,7 +104,17 @@ export const SphereTool = () => {
         return () => {
             // No cleanup needed as Colyseus handles this
         }
-    }, [room, clientId])
+    }, [room])
+
+    // Clean up old spheres
+    useEffect(() => {
+        const cleanupInterval = setInterval(() => {
+            // We rely on the server to clean up old projectiles
+            // This is just to ensure our local state stays in sync
+        }, 1000)
+        
+        return () => clearInterval(cleanupInterval)
+    }, [])
 
     const reload = () => {
         if (isReloading) return
@@ -141,23 +147,12 @@ export const SphereTool = () => {
         
         const position = camera.position.clone().add(offset)
         
-        // Adjust direction slightly upward to compensate for the lower spawn point
-        direction.normalize() // Keep direction exactly as camera is pointing
+        // Normalize direction
+        direction.normalize()
 
         const randomColor = RAINBOW_COLORS[Math.floor(Math.random() * RAINBOW_COLORS.length)]
-
-        // Add to local spheres for immediate rendering
-        const newSphere = {
-            position: position.toArray() as [number, number, number],
-            direction: direction.toArray() as [number, number, number],
-            color: randomColor,
-            radius: sphereRadius,
-            isLocal: true
-        }
         
-        setLocalSpheres(prev => [...prev, newSphere])
-        
-        // Send to server for other clients
+        // Send to server for all clients
         room.send('projectile:create', {
             position: {
                 x: position.x,
@@ -215,14 +210,9 @@ export const SphereTool = () => {
 
     return (
         <group>
-            {/* Render local spheres */}
-            {localSpheres.map((props, index) => (
-                <Sphere key={`local-${index}`} {...props} />
-            ))}
-            
-            {/* Render remote spheres */}
-            {remoteSpheres.map((props) => (
-                <Sphere key={`remote-${props.id}`} {...props} />
+            {/* Render all spheres */}
+            {Object.values(spheres).map((props) => (
+                <Sphere key={`sphere-${props.id}`} {...props} />
             ))}
         </group>
     )

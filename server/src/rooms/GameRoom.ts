@@ -30,8 +30,9 @@ export class GameRoom extends Room<GameRoomState> {
     });
 
     // Handle projectile creation
-    this.onMessage("projectile:create", (client, message: ProjectileInput) => {
-      const projectileId = `${client.sessionId}_${this.projectileIdCounter++}`;
+    this.onMessage("projectile:create", (client, message: ProjectileInput & { id?: string }) => {
+      // Use provided ID or generate one
+      const projectileId = message.id || `${client.sessionId}_${this.projectileIdCounter++}`;
       const projectile = new Projectile(projectileId, client.sessionId);
 
       // Set projectile position

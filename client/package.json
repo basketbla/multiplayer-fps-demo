@@ -15,6 +15,7 @@
     "@react-three/fiber": "^8.14.4",
     "@react-three/postprocessing": "^2.15.1",
     "@react-three/rapier": "^1.1.1",
+    "@types/uuid": "^10.0.0",
     "arancini": "^8.0.0",
     "colyseus.js": "^0.15.27",
     "leva": "^0.9.35",
@@ -22,7 +23,8 @@
     "postprocessing": "^6.33.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "three": "^0.157.0"
+    "three": "^0.157.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
