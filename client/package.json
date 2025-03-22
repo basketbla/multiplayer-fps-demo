@@ -16,6 +16,7 @@
     "@react-three/postprocessing": "^2.15.1",
     "@react-three/rapier": "^1.1.1",
     "arancini": "^8.0.0",
+    "colyseus.js": "^0.15.27",
     "leva": "^0.9.35",
     "lucide-react": "^0.344.0",
     "postprocessing": "^6.33.4",

@@ -1,68 +1,114 @@
-import { Room, Client } from "colyseus";
-import { GameState } from "../schema/GameState";
-import { Player } from "../schema/GameState";
+import { Room, Client } from "@colyseus/core";
+import { GameRoomState, Player, Projectile } from "../schema/GameRoomState";
+import { PlayerAnimation, PlayerInput, ProjectileInput } from "../../../shared/types";
 
-export class GameRoom extends Room<GameState> {
-  maxClients = 16;
+export class GameRoom extends Room<GameRoomState> {
+  private projectileIdCounter: number = 0;
+  private readonly PROJECTILE_LIFETIME_MS = 10000; // 10 seconds
 
   onCreate() {
-    this.setState(new GameState());
+    this.setState(new GameRoomState());
 
-    // Handle player movement
-    this.onMessage("move", (client, data) => {
+    // Handle player movement and rotation updates
+    this.onMessage("player:move", (client, message: PlayerInput) => {
       const player = this.state.players.get(client.sessionId);
-      if (player) {
-        player.position.x = data.position.x;
-        player.position.y = data.position.y;
-        player.position.z = data.position.z;
-        player.quaternion.x = data.quaternion.x;
-        player.quaternion.y = data.quaternion.y;
-        player.quaternion.z = data.quaternion.z;
-        player.quaternion.w = data.quaternion.w;
-      }
+      if (!player) return;
+
+      // Update player position
+      player.position.x = message.position.x;
+      player.position.y = message.position.y;
+      player.position.z = message.position.z;
+
+      // Update player rotation
+      player.rotation.x = message.rotation.x;
+      player.rotation.y = message.rotation.y;
+      player.rotation.z = message.rotation.z;
+      player.rotation.w = message.rotation.w;
+
+      // Update animation state
+      player.animation = message.animation;
     });
 
-    // Handle player jump
-    this.onMessage("jump", (client) => {
-      const player = this.state.players.get(client.sessionId);
-      if (player) {
-        // The actual jump physics will be handled client-side with Rapier
-        // This just broadcasts the jump event to other clients
-        this.broadcast("playerJumped", { id: client.sessionId });
-      }
+    // Handle projectile creation
+    this.onMessage("projectile:create", (client, message: ProjectileInput) => {
+      const projectileId = `${client.sessionId}_${this.projectileIdCounter++}`;
+      const projectile = new Projectile(projectileId, client.sessionId);
+
+      // Set projectile position
+      projectile.position.x = message.position.x;
+      projectile.position.y = message.position.y;
+      projectile.position.z = message.position.z;
+
+      // Set projectile direction
+      projectile.direction.x = message.direction.x;
+      projectile.direction.y = message.direction.y;
+      projectile.direction.z = message.direction.z;
+
+      // Set projectile color
+      projectile.color = message.color;
+
+      // Add projectile to state
+      this.state.projectiles.set(projectileId, projectile);
+
+      // Remove projectile after a certain time
+      setTimeout(() => {
+        if (this.state.projectiles.has(projectileId)) {
+          this.state.projectiles.delete(projectileId);
+        }
+      }, this.PROJECTILE_LIFETIME_MS);
     });
 
-    console.log("GameRoom created!");
+    // Set up a regular cleanup for projectiles
+    this.setSimulationInterval(() => this.cleanupProjectiles(), 1000);
   }
 
   onJoin(client: Client) {
     console.log(`Client joined: ${client.sessionId}`);
     
     // Create a new player
-    const player = new Player();
-    player.id = client.sessionId;
+    const player = new Player(client.sessionId);
     
-    // Random position on the planet surface
-    const radius = 10; // Planet radius
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.random() * Math.PI;
+    // Set initial position (random position within the arena)
+    player.position.x = (Math.random() * 40) - 20; // -20 to 20
+    player.position.y = 1;
+    player.position.z = (Math.random() * 40) - 20; // -20 to 20
     
-    player.position.x = radius * Math.sin(phi) * Math.cos(theta);
-    player.position.y = radius * Math.sin(phi) * Math.sin(theta);
-    player.position.z = radius * Math.cos(phi);
+    // Set initial animation
+    player.animation = PlayerAnimation.IDLE;
     
-    // Add player to the game state
+    // Add player to the room state
     this.state.players.set(client.sessionId, player);
   }
 
   onLeave(client: Client) {
     console.log(`Client left: ${client.sessionId}`);
     
-    // Remove the player from the game state
-    this.state.players.delete(client.sessionId);
+    // Remove player from the room state
+    if (this.state.players.has(client.sessionId)) {
+      this.state.players.delete(client.sessionId);
+    }
+    
+    // Clean up any projectiles owned by this player
+    this.cleanupPlayerProjectiles(client.sessionId);
   }
 
-  onDispose() {
-    console.log("GameRoom disposed!");
+  private cleanupProjectiles() {
+    const now = Date.now();
+    
+    // Remove projectiles that have exceeded their lifetime
+    this.state.projectiles.forEach((projectile, key) => {
+      if (now - projectile.timestamp > this.PROJECTILE_LIFETIME_MS) {
+        this.state.projectiles.delete(key);
+      }
+    });
+  }
+
+  private cleanupPlayerProjectiles(playerId: string) {
+    // Remove all projectiles owned by the player who left
+    this.state.projectiles.forEach((projectile, key) => {
+      if (projectile.ownerId === playerId) {
+        this.state.projectiles.delete(key);
+      }
+    });
   }
 }

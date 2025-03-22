@@ -1,28 +1,34 @@
-import { Server } from "colyseus";
-import { createServer } from "http";
-import express from "express";
+import { Server } from "@colyseus/core";
+import { WebSocketTransport } from "@colyseus/ws-transport";
 import cors from "cors";
-import { monitor } from "@colyseus/monitor";
+import express from "express";
+import { createServer } from "http";
+import path from "path";
 import { GameRoom } from "./rooms/GameRoom";
 
-const port = Number(process.env.PORT || 3001);
+const port = Number(process.env.PORT || 3000);
 const app = express();
 
+// Apply CORS middleware
 app.use(cors());
-app.use(express.json());
 
-// Colyseus monitor route
-app.use("/colyseus", monitor());
+// Serve static files from the client's dist directory
+app.use(express.static(path.join(__dirname, "../../client/dist")));
 
-const gameServer = new Server({
-  server: createServer(app)
+// Create HTTP server
+const httpServer = createServer(app);
+
+// Create a Colyseus server using the same HTTP server
+const server = new Server({
+  transport: new WebSocketTransport({
+    server: httpServer,
+  }),
 });
 
 // Register the game room
-gameServer.define("game_room", GameRoom);
+server.define("game_room", GameRoom);
 
-gameServer.listen(port).then(() => {
-  console.log(`🚀 Game server is running on http://localhost:${port}`);
-}).catch(err => {
-  console.error(err);
+// Start the server using the shared HTTP server
+httpServer.listen(port, () => {
+  console.log(`🚀 Server running on http://localhost:${port}`);
 });
