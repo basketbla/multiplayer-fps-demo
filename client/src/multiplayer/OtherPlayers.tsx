@@ -12,25 +12,14 @@ const PlayerAvatar = ({ position }: { position: THREE.Vector3 }) => {
   );
 };
 
-// Simple projectile representation
-const Projectile = ({ position, color = '#ff0000' }: { position: THREE.Vector3, color?: string }) => {
-  return (
-    <mesh position={position}>
-      <sphereGeometry args={[0.2, 8, 8]} />
-      <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
-    </mesh>
-  );
-};
-
 export const OtherPlayers: React.FC = () => {
   const { room, clientId } = useMultiplayer();
   const [players, setPlayers] = useState<{[key: string]: {position: THREE.Vector3}}>({});
-  const [projectiles, setProjectiles] = useState<{[key: string]: {position: THREE.Vector3, color: string}}>({});
   
   useEffect(() => {
     if (!room) return;
     
-    // Update player positions and projectiles when state changes
+    // Update player positions when state changes
     const handleStateChange = (state: any) => {
       // Update players
       const newPlayers: {[key: string]: {position: THREE.Vector3}} = {};
@@ -49,22 +38,6 @@ export const OtherPlayers: React.FC = () => {
       });
       
       setPlayers(newPlayers);
-      
-      // Update projectiles
-      const newProjectiles: {[key: string]: {position: THREE.Vector3, color: string}} = {};
-      
-      state.projectiles.forEach((projectile: any, id: string) => {
-        newProjectiles[id] = {
-          position: new THREE.Vector3(
-            projectile.position.x,
-            projectile.position.y,
-            projectile.position.z
-          ),
-          color: projectile.color || '#ff0000'
-        };
-      });
-      
-      setProjectiles(newProjectiles);
     };
     
     room.onStateChange(handleStateChange);
@@ -84,11 +57,6 @@ export const OtherPlayers: React.FC = () => {
       {/* Render other players */}
       {Object.entries(players).map(([id, player]) => (
         <PlayerAvatar key={`player-${id}`} position={player.position} />
-      ))}
-      
-      {/* Render projectiles */}
-      {Object.entries(projectiles).map(([id, projectile]) => (
-        <Projectile key={`projectile-${id}`} position={projectile.position} color={projectile.color} />
       ))}
     </>
   );
