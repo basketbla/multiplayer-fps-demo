@@ -70,7 +70,7 @@ export const Player = ({
   const playerRef = useRef<EntityType>(null!);
   const gltf = useGLTF("/fps.glb");
   const { actions } = useAnimations(gltf.animations, gltf.scene);
-  const { room, sendProjectile } = useMultiplayer();
+  const { room } = useMultiplayer();
 
   const { x, y, z } = useControls(
     "Arms Position",
@@ -140,24 +140,18 @@ export const Player = ({
           fireAction.reset().play();
         }
 
-        // Send projectile data to server
-        if (playerRef.current && playerRef.current.rigidBody && room) {
-          const position = playerRef.current.rigidBody.translation();
-          const cameraDirection = new THREE.Vector3();
-          camera.getWorldDirection(cameraDirection);
-
-          // Send projectile data
-          sendProjectile(
-            new THREE.Vector3(position.x, position.y + 1.5, position.z),
-            cameraDirection
-          );
-        }
+        // // Send projectile data to server
+        // if (playerRef.current && playerRef.current.rigidBody && room) {
+        //   const position = playerRef.current.rigidBody.translation();
+        //   const cameraDirection = new THREE.Vector3();
+        //   camera.getWorldDirection(cameraDirection);
+        // }
       }
     };
 
     window.addEventListener("pointerdown", handleShoot);
     return () => window.removeEventListener("pointerdown", handleShoot);
-  }, [actions, camera, room, sendProjectile]);
+  }, [actions, camera, room]);
 
   useBeforePhysicsStep(() => {
     const characterRigidBody = playerRef.current.rigidBody;
