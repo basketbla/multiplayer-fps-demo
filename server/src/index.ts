@@ -1,5 +1,6 @@
 import { Server } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
+import { monitor } from "@colyseus/monitor";
 import cors from "cors";
 import express from "express";
 import { createServer } from "http";
@@ -14,6 +15,9 @@ app.use(cors());
 
 // Serve static files from the client's dist directory
 app.use(express.static(path.join(__dirname, "../../client/dist")));
+
+// Add Colyseus Monitor
+app.use("/monitor", monitor());
 
 // Create HTTP server
 const httpServer = createServer(app);

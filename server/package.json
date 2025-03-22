@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@colyseus/core": "^0.15.0",
+    "@colyseus/monitor": "^0.16.6",
     "@colyseus/schema": "^2.0.0",
     "@colyseus/ws-transport": "^0.15.0",
     "cors": "^2.8.5",
