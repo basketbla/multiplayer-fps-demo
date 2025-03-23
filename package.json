@@ -10,7 +10,8 @@
     "build": "npm run build:client && npm run build:server",
     "build:client": "cd client && npm run build",
     "build:server": "cd server && npm run build",
-    "start": "cd server && npm run serve"
+    "start": "cd server && npm run serve",
+    "install-all": "npm install && cd client && npm install && cd ../server && npm install"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
